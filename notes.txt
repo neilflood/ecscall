@@ -31,14 +31,13 @@ Package structure
 -----------------
 ecscall:
   caller.py
-  timinghooks.py
   networking.py
 
 
 Functions in caller.py
 ----------------------
 
-def callFunc(userFunc, argTupleList, numWorkers, ecsCfg, timers=None):
+def callFunc(userFunc, argTupleList, numWorkers, ecsCfg):
     """
     Call the given user function repeatedly, with arguments
     from argTupleList. Workers are running calls concurrently
@@ -57,9 +56,6 @@ def callFunc(userFunc, argTupleList, numWorkers, ecsCfg, timers=None):
       ecsCfg : dict
         Dictionary of parameters to various boto3 calls. All together
         this defines the configuration of the ECS cluster
-      timers : TimingHooks
-        If given, this will be updated with timing info from the
-        individual function calls
 
     Returns
     -------
