@@ -8,8 +8,9 @@
     and a tuple of arguments with which to call the function
   - the function which will be called. This is the same function
     for all calls. (Use cloudpickle to transfer it)
-  - a dictionary into which output objects are put(). Key is the
-    list index, value is the function return value for that index.
+  - a dictionary into which output objects are placed (setdefault()).
+    Key is the list index, value is the function return value for
+    that index.
   - a forceExit event
   - an exception queue, where worker exceptions are placed
   - a worker barrier
@@ -59,11 +60,11 @@ def callFunc(userFunc, argTupleList, numWorkers, ecsCfg):
 
     Returns
     -------
-      returnValList : list
-        List of userFunc return values. Order corresponds to that of
-        argTuplelist, so that returnValList[i] is the return value
-        for argTupleList[i]. Calls which did not return will have a
-        special value in this list (not None, as this might be a valid return)
+      returnValDict : dict
+        Dictionary of userFunc return values. Key is the index number
+        corresponding to the order in argTupleList. If the call for
+        a particular arg tuple did not return (i.e. had an error),
+        that index value will be missing from the dictionary.
 
     """
 
