@@ -66,8 +66,9 @@ class EcsCallCfg:
     """
     Control the behaviour of callFunc
     """
-    def __init__(self, barrierTimeout=???, waitClusterInstanceCountTimeout=):
-        self.zzz = sometimeout
+    def __init__(self, barrierTimeout=600, waitClusterInstanceCountTimeout=300):
+        self.barrierTimeout = barrierTimeout
+        self.waitClusterInstanceCountTimeout = waitClusterInstanceCountTimeout
 
 
 class EcsClusterMgr:
