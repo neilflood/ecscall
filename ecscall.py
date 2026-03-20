@@ -2,11 +2,15 @@
 Simple wrapper for spreading a series of function calls across an AWS ECS cluster
 
 """
+import sys
 import argparse
 from concurrent import futures
 from multiprocessing.managers import BaseManager
 import queue
 import threading
+import secrets
+import socket
+import time
 
 import boto3
 import cloudpickle
@@ -53,8 +57,10 @@ def callFunc(userFunc, argTupleList, numWorkers, ecsClusterParams, callCfg=None)
 def makeEcsClusterParams_Fargate():
     ''
 
+
 def makeEcsClusterParams_PrivateCluster():
     ''
+
 
 def worker():
     """
@@ -155,7 +161,6 @@ class _EcsClusterMgr:
         # Loop over return values, from returnValQue. Place them in returnValDict and increment
         # the count. We wait on the queue, with a timeout. If timeout is triggered, then 
         # workers have failed, check exception que. 
-        
 
     def shutdown(self):
         """
