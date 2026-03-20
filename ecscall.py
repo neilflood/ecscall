@@ -62,7 +62,7 @@ def worker():
     """
 
 
-class EcsCallCfg:
+class _EcsCallCfg:
     """
     Control the behaviour of callFunc
     """
@@ -71,7 +71,7 @@ class EcsCallCfg:
         self.waitClusterInstanceCountTimeout = waitClusterInstanceCountTimeout
 
 
-class EcsClusterMgr:
+class _EcsClusterMgr:
     """
     Manage the ECS cluster running workers for callFunc
     """
@@ -345,7 +345,7 @@ class EcsClusterMgr:
                     exitCode, reason), file=sys.stderr)
 
 
-class NetworkDataChannel:
+class _NetworkDataChannel:
     """
     A network-visible channel to serve out all the required information to
     a group of ecscall workers.
