@@ -31,7 +31,7 @@ def callFunc(userFunc, argTupleList, numWorkers, ecsClusterParams, callCfg=None)
       ecsClusterParams : dict
         Dictionary of parameters to various boto3 calls to manage
         the ECS cluster.
-      callCfg : EcsCallCfg or None
+      callCfg : _EcsCallCfg or None
         If given, this allows over-ride of default behaviour of ecscall.
         Mostly timeouts??
 
@@ -45,9 +45,9 @@ def callFunc(userFunc, argTupleList, numWorkers, ecsClusterParams, callCfg=None)
 
     """
     if callCfg is None:
-        callCfg = EcsCallCfg()
+        callCfg = _EcsCallCfg()
 
-    clusterMgr = EcsClusterMgr(userFunc, argTupleList, numWorkers, ecsClusterParams, callCfg)
+    clusterMgr = _EcsClusterMgr(userFunc, argTupleList, numWorkers, ecsClusterParams, callCfg)
 
 
 def makeEcsClusterParams_Fargate():
@@ -93,7 +93,7 @@ class _EcsClusterMgr:
             argsQue.put((i, argTupleList[i]))
 
         # Set up the network communication with workers
-        self.dataChan = NetworkDataChannel(userFunc, self.argsQue,
+        self.dataChan = _NetworkDataChannel(userFunc, self.argsQue,
             self.returnValQue, self.forceExit, self.exceptionQue,
             self.workerBarrier)
 
