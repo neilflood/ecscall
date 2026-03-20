@@ -86,7 +86,7 @@ class EcsClusterMgr:
         self.forceExit = threading.Event()
         self.exceptionQue = queue.Queue()
         self.workerBarrier = threading.Barrier(numWorkers + 1)
-        self.returnValDict = {}
+        self.returnValQue = queue.Queue()
 
         # Put all arg tuples into the argsQue (with their index number)
         for i in range(len(argTupleList)):
@@ -94,7 +94,7 @@ class EcsClusterMgr:
 
         # Set up the network communication with workers
         self.dataChan = NetworkDataChannel(userFunc, self.argsQue,
-            self.returnValDict, self.forceExit, self.exceptionQue,
+            self.returnValQue, self.forceExit, self.exceptionQue,
             self.workerBarrier)
 
         self.createdTaskDef = False
@@ -151,6 +151,11 @@ class EcsClusterMgr:
 
         # Do not proceed until all workers have started
         self.workerBarrier.wait(timeout=callCfg.barrierTimeout)
+
+        # Loop over return values, from returnValQue. Place them in returnValDict and increment
+        # the count. We wait on the queue, with a timeout. If timeout is triggered, then 
+        # workers have failed, check exception que. 
+        
 
     def shutdown(self):
         """
@@ -353,9 +358,9 @@ class NetworkDataChannel:
             Each element of this queue is a tuple (i, argsTuple), where i is
             the index number and argsTuple is a tuple of arguments for the
             user function
-        returnValDict : dict
-            Return value for each call to the user function, keyed by
-            index i (see argsQue)
+        returnValQue : Queue
+            As each call completes, its return value is placed in this queue,
+            along with its index, as a tuple (i, returnValue)
         forceExit : Event
             If set, this signals that workers should exit
             as soon as possible
@@ -382,13 +387,13 @@ class NetworkDataChannel:
     should always be called explicitly.
 
     """
-    def __init__(self, userFunc=None, argsQue=None, returnValDict=None,
+    def __init__(self, userFunc=None, argsQue=None, returnValQue=None,
             forceExit=None, exceptionQue=None, workerBarrier=None,
             hostname=None, portnum=None, authkey=None):
         class DataChannelMgr(BaseManager):
             pass
 
-        if None not in (userFunc, argsQue, returnValDict):
+        if None not in (userFunc, argsQue, returnValQue):
             self.hostname = socket.gethostname()
             # Authkey is a big long random bytes string. Make one which is
             # also printable ascii.
@@ -396,7 +401,7 @@ class NetworkDataChannel:
 
             self.userFunc = cloudpickle.dumps(userFunc)
             self.argsQue = argsQue
-            self.returnValDict = returnValDict
+            self.returnValQue = returnValQue
             self.forceExit = forceExit
             self.exceptionQue = exceptionQue
             self.workerBarrier = workerBarrier
@@ -405,8 +410,8 @@ class NetworkDataChannel:
                 callable=lambda: self.userFunc)
             DataChannelMgr.register("get_argsque",
                 callable=lambda: self.argsQue)
-            DataChannelMgr.register("get_returnvaldict",
-                callable=lambda: self.returnValDict)
+            DataChannelMgr.register("get_returnvalque",
+                callable=lambda: self.returnValQue)
             DataChannelMgr.register("get_forceexit",
                 callable=lambda: self.forceExit)
             DataChannelMgr.register("get_exceptionque",
@@ -425,7 +430,7 @@ class NetworkDataChannel:
         elif None not in (hostname, portnum, authkey):
             DataChannelMgr.register("get_userfunc")
             DataChannelMgr.register("get_argsque")
-            DataChannelMgr.register("get_returnvaldict")
+            DataChannelMgr.register("get_returnvalque")
             DataChannelMgr.register("get_forceexit")
             DataChannelMgr.register("get_exceptionque")
             DataChannelMgr.register("get_workerbarrier")
@@ -441,7 +446,7 @@ class NetworkDataChannel:
             self.userFunc = cloudpickle.loads(eval(str(
                 self.mgr.get_userfunc())))
             self.argsQue = self.mgr.get_argsque()
-            self.returnValDict = self.mgr.get_returnvaldict()
+            self.returnValQue = self.mgr.get_returnvalque()
             self.forceExit = self.mgr.get_forceexit()
             self.exceptionQue = self.mgr.get_exceptionque()
             self.workerBarrier = self.mgr.get_workerbarrier()
