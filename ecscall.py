@@ -160,7 +160,7 @@ def makeEcsClusterParams_Fargate(jobName=None, containerImage=None,
         must all be strings. Requires ``ecs:TagResource`` permission.
 
     Only certain combinations of cpu and memory are allowed, as these are used
-    by Fargate to select a suitable VM instance type. See ESC.Client.run_task()
+    by Fargate to select a suitable VM instance type. See ECS.Client.run_task()
     documentation for further details.
 
     """
@@ -478,7 +478,7 @@ def _worker():
 
 def _makeJobIDstr(jobName):
     """
-    Make a job ID string to use in various generate names. It is unique to
+    Make a job ID string to use in various generated names. It is unique to
     this run, and also includes any human-readable information available
     """
     hexStr = random.randbytes(4).hex()
