@@ -35,9 +35,9 @@ def callFunc(userFunc, argTupleList, numWorkers, ecsClusterParams, callCfg=None)
       ecsClusterParams : dict
         Dictionary of parameters to various boto3 calls to manage
         the ECS cluster.
-      callCfg : _EcsCallCfg or None
+      callCfg : EcsCallCfg or None
         If given, this allows over-ride of default behaviour of ecscall.
-        Mostly timeouts??
+        Mostly timeouts.
 
     Returns
     -------
@@ -49,9 +49,17 @@ def callFunc(userFunc, argTupleList, numWorkers, ecsClusterParams, callCfg=None)
 
     """
     if callCfg is None:
-        callCfg = _EcsCallCfg()
+        callCfg = EcsCallCfg()
 
-    clusterMgr = _EcsClusterMgr(userFunc, argTupleList, numWorkers, ecsClusterParams, callCfg)
+    try:
+        clusterMgr = _EcsClusterMgr(userFunc, argTupleList, numWorkers,
+            ecsClusterParams, callCfg)
+        clusterMgr.startWorkers()
+        returnValsDict = clusterMgr.processReturnVals()
+    finally:
+        clusterMgr.shutdown()
+
+    return returnValsDict
 
 
 def makeEcsClusterParams_Fargate():
@@ -68,13 +76,15 @@ def worker():
     """
 
 
-class _EcsCallCfg:
+class EcsCallCfg:
     """
     Control the behaviour of callFunc
     """
-    def __init__(self, barrierTimeout=600, waitClusterInstanceCountTimeout=300):
+    def __init__(self, barrierTimeout=600, waitClusterInstanceCountTimeout=300,
+            returnTimeout=300):
         self.barrierTimeout = barrierTimeout
         self.waitClusterInstanceCountTimeout = waitClusterInstanceCountTimeout
+        self.returnTimeout = returnTimeout
 
 
 class _EcsClusterMgr:
@@ -82,12 +92,34 @@ class _EcsClusterMgr:
     Manage the ECS cluster running workers for callFunc
     """
     def __init__(self, userFunc, argTupleList, numWorkers, ecsClusterParams, callCfg):
+        """
+        Parameters
+        ----------
+            userFunc : function
+              The user's function to be called
+            argTupleList : list of tuples
+              Each element is tuple of arguments for userFunc
+            numWorkers : int
+              Number of worker processes to run, doing the work of calling the
+              function
+            ecsClusterParams : dict
+              Dictionary of parameters for boto3 configuration. See helper
+              functions makeEcsClusterParams_Fargate &
+              makeEcsClusterParams_PrivateCluster
+            callCfg : EcsCallCfg
+              Configuration information for ecscall, mostly timeout values
+
+        """
         self.userFunc = userFunc
         self.argTupleList = argTupleList
         self.numWorkers = numWorkers
         self.ecsClusterParams = ecsClusterParams
         self.callCfg = callCfg
 
+    def startWorkers(self):
+        """
+        Start the ecscall workers, and send the argTupleList into the queue
+        """
         self.argsQue = queue.Queue()
         self.forceExit = threading.Event()
         self.exceptionQue = queue.Queue()
@@ -96,7 +128,7 @@ class _EcsClusterMgr:
 
         # Put all arg tuples into the argsQue (with their index number)
         for i in range(len(argTupleList)):
-            argsQue.put((i, argTupleList[i]))
+            self.argsQue.put((i, argTupleList[i]))
 
         # Set up the network communication with workers
         self.dataChan = _NetworkDataChannel(userFunc, self.argsQue,
@@ -158,9 +190,44 @@ class _EcsClusterMgr:
         # Do not proceed until all workers have started
         self.workerBarrier.wait(timeout=callCfg.barrierTimeout)
 
-        # Loop over return values, from returnValQue. Place them in returnValDict and increment
-        # the count. We wait on the queue, with a timeout. If timeout is triggered, then 
-        # workers have failed, check exception que. 
+    def processReturnVals():
+        """
+        Wait for return values to come back from the workers, and assemble
+        them into a dictionary
+
+        Returns
+        -------
+          returnValsDict : dict
+            Key is index number, value is return for the corresponding element
+            of argTupleList
+        """
+        returnValsDict = {}
+        numReturnsExpected = len(self.argTupleList)
+        queTimeout = self.callCfg.returnTimeout
+        done = False:
+        while not done:
+            done = (len(returnValsDict) == numReturnsExpected)
+            if not done:
+                timedOut = False
+                try:
+                    retObj = self.argsQue.get(timeout=queTimeout)
+                    (ndx, retVal) = retObj
+                    returnValsDict[ndx] = retVal
+                except queue.Empty:
+                    timedOut = True
+
+                if not self.exceptionQue.empty():
+                    exceptionRecord = self.exceptionQue.get()
+                    reportWorkerException(exceptionRecord)
+                    msg = "The preceding exception was raised in a worker"
+                    raise EcsCallError(msg)
+                elif timedOut:
+                    msg = ("Timeout waiting for function return. Try " +
+                           "increasing returnTimeout (currently {})"
+                    msg = msg.format(queTimeout))
+                    raise EcsCallError(msg)
+
+        return returnValsDict
 
     def shutdown(self):
         """
