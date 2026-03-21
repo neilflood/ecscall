@@ -106,9 +106,9 @@ def makeEcsClusterParams_Fargate(jobName=None, containerImage=None,
             subnet=None, securityGroups=None, cpu='0.5 vCPU', memory='1GB',
             cpuArchitecture=None, cloudwatchLogGroup=None, tags=None):
     """
-    Helper function to construct a minimal computeWorkerExtraParams
-    dictionary suitable for using ECS with Fargate launchType, given
-    just the bare essential information.
+    Helper function to construct a minimal ecsClusterParamsdictionary
+    suitable for using ECS with Fargate launchType, given just the
+    bare essential information.
 
     Returns a Python dictionary.
 
@@ -247,9 +247,9 @@ def makeEcsClusterParams_PrivateCluster(jobName=None, numInstances=None,
             subnet=None, securityGroups=None, instanceProfileArn=None,
             memoryReservation=1024, cloudwatchLogGroup=None, tags=None):
     """
-    Helper function to construct a basic computeWorkerExtraParams
-    dictionary suitable for using ECS with a private per-job cluster,
-    given just the bare essential information.
+    Helper function to construct a basic ecsClusterParams dictionary
+    suitable for using ECS with a private per-job cluster, given just the
+    bare essential information.
 
     Returns a Python dictionary.
 
