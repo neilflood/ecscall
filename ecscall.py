@@ -12,6 +12,7 @@ import secrets
 import socket
 import time
 import random
+import traceback
 
 import boto3
 import cloudpickle
@@ -398,6 +399,55 @@ def worker():
     """
     The function which is called by the worker command line entry point
     """
+    p = argparse.ArgumentParser(
+        description="Main script run by each ecscall worker")
+    p.add_argument("-i", "--idnum", type=int, help="Worker ID number")
+    p.add_argument("--channaddr", help=("Directly specified data channel " +
+        "address, as 'hostname,portnum,authkey'."))
+
+    cmdargs = p.parse_args()
+    if cmdargs.channaddrfile is not None:
+        addrStr = open(cmdargs.channaddrfile).readline().strip()
+    else:
+        addrStr = cmdargs.channaddr
+
+    (host, port, authkey) = tuple(addrStr.split(','))
+    port = int(port)
+    authkey = bytes(authkey, 'utf-8')
+
+    dataChan = _NetworkDataChannel(hostname=host, portnum=port, authkey=authkey)
+
+    userFunc = dataChan.userFunc
+    argsQue = dataChan.argsQue
+    returnValQue = dataChan.returnValQue
+    exceptionQue = dataChan.exceptionQue
+    forceExit = dataChan.forceExit
+    workerBarrier = dataChan.workerBarrier
+    callCfg = dataChan.callCfg
+
+    # Wait at the barrier, so nothing proceeds until all workers have had
+    # a chance to start
+    workerBarrier.wait(timeout=callCfg.barrierTimeout)
+
+    finished = False
+    try:
+        argsObj = argsQue.get(block=False)
+    except queue.Empty:
+        finished = True
+    while not finished and not forceExit.is_set():
+        try:
+            (ndx, args) = argsObj
+            retVal = userFunc(*args)
+            returnValQue.put((ndx, retVal))
+        except Exception as e:
+            # Send a printable version of the exception back to main thread
+            workerErr = WorkerErrorRecord(e, cmdargs.workerID)
+            exceptionQue.put(workerErr)
+
+        try:
+            argsObj = argsQue.get(block=False)
+        except queue.Empty:
+            finished = True
 
 
 class EcsCallCfg:
@@ -544,7 +594,7 @@ class _EcsClusterMgr:
 
                 if not self.exceptionQue.empty():
                     exceptionRecord = self.exceptionQue.get()
-                    reportWorkerException(exceptionRecord)
+                    print(exceptionRecord, file=sys.stderr)
                     msg = "The preceding exception was raised in a worker"
                     raise EcsCallError(msg)
                 elif timedOut:
@@ -768,6 +818,8 @@ class _NetworkDataChannel:
             workers will wait at this barrier, as will the main thread,
             so that no processing starts until all compute workers are
             ready to work.
+        callCfg : EcsCallCfg
+            Config object for ecscall
 
     If the constructor is given these major objects as arguments, then this
     is the server of these objects, and they are served to the network on
@@ -785,7 +837,7 @@ class _NetworkDataChannel:
     """
     def __init__(self, userFunc=None, argsQue=None, returnValQue=None,
             forceExit=None, exceptionQue=None, workerBarrier=None,
-            hostname=None, portnum=None, authkey=None):
+            callCfg=None, hostname=None, portnum=None, authkey=None):
         class DataChannelMgr(BaseManager):
             pass
 
@@ -801,6 +853,7 @@ class _NetworkDataChannel:
             self.forceExit = forceExit
             self.exceptionQue = exceptionQue
             self.workerBarrier = workerBarrier
+            self.callCfg = callCfg
 
             DataChannelMgr.register("get_userfunc",
                 callable=lambda: self.userFunc)
@@ -814,6 +867,8 @@ class _NetworkDataChannel:
                 callable=lambda: self.exceptionQue)
             DataChannelMgr.register("get_workerbarrier",
                 callable=lambda: self.workerBarrier)
+            DataChannelMgr.register("get_callcfg",
+                callable=lambda: self.callCfg)
 
             self.mgr = DataChannelMgr(address=(self.hostname, 0),
                                      authkey=bytes(self.authkey, 'utf-8'))
@@ -830,6 +885,7 @@ class _NetworkDataChannel:
             DataChannelMgr.register("get_forceexit")
             DataChannelMgr.register("get_exceptionque")
             DataChannelMgr.register("get_workerbarrier")
+            DataChannelMgr.register("get_callcfg")
 
             self.mgr = DataChannelMgr(address=(hostname, portnum),
                                      authkey=authkey)
@@ -846,6 +902,7 @@ class _NetworkDataChannel:
             self.forceExit = self.mgr.get_forceexit()
             self.exceptionQue = self.mgr.get_exceptionque()
             self.workerBarrier = self.mgr.get_workerbarrier()
+            self.callCfg = self.mgr.get_callcfg()
         else:
             msg = ("Must supply either (userFunc, argsQue, etc.)" +
                    " or ALL of (hostname, portnum and authkey)")
@@ -881,6 +938,25 @@ class _NetworkDataChannel:
         Return a single string encoding the network address of this channel
         """
         s = "{},{},{}".format(self.hostname, self.portnum, self.authkey)
+        return s
+
+
+class WorkerErrorRecord:
+    """
+    Hold a record of an exception raised in a remote worker.
+    """
+    def __init__(self, exc, workerID=None):
+        self.exc = exc
+        self.workerID = workerID
+        self.formattedTraceback = traceback.format_exception(exc)
+
+    def __str__(self):
+        headLine = "Error in ecscall worker"
+        if self.workerID is not None:
+            headLine += " {}".format(self.workerID)
+        lines = [headLine]
+        lines.extend([line.strip('\n') for line in self.formattedTraceback])
+        s = '\n'.join(lines) + '\n'
         return s
 
 
