@@ -431,12 +431,8 @@ def _worker():
         "address, as 'hostname,portnum,authkey'."))
 
     cmdargs = p.parse_args()
-    if cmdargs.channaddrfile is not None:
-        addrStr = open(cmdargs.channaddrfile).readline().strip()
-    else:
-        addrStr = cmdargs.channaddr
 
-    (host, port, authkey) = tuple(addrStr.split(','))
+    (host, port, authkey) = tuple(cmdargs.channaddr.split(','))
     port = int(port)
     authkey = bytes(authkey, 'utf-8')
 
