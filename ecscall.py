@@ -11,6 +11,7 @@ import threading
 import secrets
 import socket
 import time
+import random
 
 import boto3
 import cloudpickle
@@ -62,12 +63,336 @@ def callFunc(userFunc, argTupleList, numWorkers, ecsClusterParams, callCfg=None)
     return returnValsDict
 
 
-def makeEcsClusterParams_Fargate():
-    ''
+def makeJobIDstr(jobName):
+    """
+    Make a job ID string to use in various generate names. It is unique to
+    this run, and also includes any human-readable information available
+    """
+    hexStr = random.randbytes(4).hex()
+    if jobName is None:
+        jobIDstr = hexStr
+    else:
+        jobIDstr = "{}-{}".format(jobName, hexStr)
+    return jobIDstr
 
 
-def makeEcsClusterParams_PrivateCluster():
-    ''
+def makeEcsClusterParams_Fargate(jobName=None, containerImage=None,
+            taskRoleArn=None, executionRoleArn=None,
+            subnet=None, securityGroups=None, cpu='0.5 vCPU', memory='1GB',
+            cpuArchitecture=None, cloudwatchLogGroup=None, tags=None):
+    """
+    Helper function to construct a minimal computeWorkerExtraParams
+    dictionary suitable for using ECS with Fargate launchType, given
+    just the bare essential information.
+
+    Returns a Python dictionary.
+
+    jobName : str
+        Arbitrary string, optional. If given, this name will be incorporated
+        into some AWS/ECS names for the compute workers, including the
+        container name and the task family name.
+    containerImage : str
+        Required. URI of the container image to use for compute workers. This
+        container must have ecscall installed. It can be the same container as
+        used for the main script, as the entry point is over-written.
+    executionRoleArn : str
+        Required. ARN for an AWS role. This allows ECS to use AWS services on
+        your behalf. A good start is a role including
+        AmazonECSTaskExecutionRolePolicy, which allows access to ECR
+        container registries and CloudWatch logs.
+    taskRoleArn : str
+        Required. ARN for an AWS role. This allows your code to use AWS
+        services. This role should include policies such as AmazonS3FullAccess,
+        covering any AWS services your compute workers will need.
+    subnet : str
+        Required. Subnet ID string associated with the VPC in which
+        workers will run.
+    securityGroups : list of str
+        Required. List of security group IDs associated with the VPC.
+    cpu : str
+        Number of CPU units requested for each compute worker, expressed in
+        AWS's own units. For example, '0.5 vCPU', or '1024' (which
+        corresponds to the same thing). Both must be strings. This helps
+        Fargate to select a suitable VM instance type (see below).
+    memory : str
+        Amount of memory requested for each compute worker, expressed in MiB,
+        or with a units suffix. For example, '1024' or its equivalent '1GB'.
+        This helps Fargate to select a suitable VM instance type (see below).
+    cpuArchitecture : str
+        If given, selects the CPU architecture of the hosts to run worker on.
+        Can be 'ARM64', defaults to 'X86_64'.
+    cloudwatchLogGroup : str or None
+        Optional. Name of CloudWatch log group. If not None, each worker
+        sends a log stream of its stdout & stderr to this log group. The
+        group should already exist. If None, no CloudWatch logging is done.
+        Intended for tracking obscure problems, rather than to use permanently.
+    tags: dict or None
+        Optional. If specified this needs to be a dictionary of key/value
+        pairs which will be turned into AWS tags. These will be added to
+        the ECS cluster, task definition and tasks. The keys and values
+        must all be strings. Requires ``ecs:TagResource`` permission.
+
+    Only certain combinations of cpu and memory are allowed, as these are used
+    by Fargate to select a suitable VM instance type. See ESC.Client.run_task()
+    documentation for further details.
+
+    """
+    jobIDstr = makeJobIDstr(jobName)
+    containerName = 'ECSCALL_{}_container'.format(jobIDstr)
+    taskFamily = "ECSCALL_{}_task".format(jobIDstr)
+    clusterName = "ECSCALL_{}_cluster".format(jobIDstr)
+    aws_tags = None
+    if tags is not None:
+        # covert to AWS format
+        aws_tags = []
+        for key, value in tags.items():
+            obj = {'key': key, 'value': value}
+            aws_tags.append(obj)
+
+    createClusterParams = {"clusterName": clusterName,
+        'tags': [{'key': 'ECSCALL-cluster', 'value': ''}]}
+    if aws_tags is not None:
+        createClusterParams['tags'].extend(aws_tags)
+
+    containerDefs = [{'name': containerName,
+                      'image': containerImage,
+                      'entryPoint': ['/usr/bin/env', 'ecscall_computeworker']}]
+    if cloudwatchLogGroup is not None:
+        # We are using the default session, so ask it what region
+        session = boto3._get_default_session()
+        regionName = session.region_name
+        # Set up the cloudwatch log configuration
+        containerDefs[0]['logConfiguration'] = {
+            'logDriver': 'awslogs',
+            'options': {
+                'awslogs-group': cloudwatchLogGroup,
+                'awslogs-stream-prefix': f'/ECSCALL_{jobIDstr}',
+                'awslogs-region': regionName
+            }
+        }
+
+    networkConf = {
+        'awsvpcConfiguration': {
+            'assignPublicIp': 'DISABLED',
+            'subnets': [subnet],
+            'securityGroups': securityGroups
+        }
+    }
+
+    taskDefParams = {
+        'family': taskFamily,
+        'networkMode': 'awsvpc',
+        'requiresCompatibilities': ['FARGATE'],
+        'containerDefinitions': containerDefs,
+        'cpu': cpu,
+        'memory': memory
+    }
+    if taskRoleArn is not None:
+        taskDefParams['taskRoleArn'] = taskRoleArn
+    if executionRoleArn is not None:
+        taskDefParams['executionRoleArn'] = executionRoleArn
+    if cpuArchitecture is not None:
+        taskDefParams['runtimePlatform'] = {'cpuArchitecture': cpuArchitecture}
+    if aws_tags is not None:
+        taskDefParams['tags'] = aws_tags
+
+    runTaskParams = {
+        'launchType': 'FARGATE',
+        'cluster': clusterName,
+        'networkConfiguration': networkConf,
+        'taskDefinition': 'Dummy, to be over-written within ecscall',
+        'overrides': {'containerOverrides': [{
+            "command": 'Dummy, to be over-written within ecscall',
+            'name': containerName}]}
+    }
+    if aws_tags is not None:
+        runTaskParams['tags'] = aws_tags
+
+    extraParams = {
+        'register_task_definition': taskDefParams,
+        'create_cluster': createClusterParams,
+        'run_task': runTaskParams
+    }
+    return extraParams
+
+
+def makeEcsClusterParams_PrivateCluster(jobName=None, numInstances=None,
+            ami=None, instanceType=None, containerImage=None,
+            taskRoleArn=None, executionRoleArn=None,
+            subnet=None, securityGroups=None, instanceProfileArn=None,
+            memoryReservation=1024, cloudwatchLogGroup=None, tags=None):
+    """
+    Helper function to construct a basic computeWorkerExtraParams
+    dictionary suitable for using ECS with a private per-job cluster,
+    given just the bare essential information.
+
+    Returns a Python dictionary.
+
+    jobName : str
+        Arbitrary string, optional. If given, this name will be incorporated
+        into some AWS/ECS names for the compute workers, including the
+        container name and the task family name.
+    numInstances : int
+        Number of VM instances which will comprise the private ECS cluster.
+        The ecscall compute workers will be distributed across these, so it
+        makes sense to have the same number of instances, i.e. one worker
+        on each instance.
+    ami : str
+        Amazon Machine Image ID string. This should be for an ECS-Optimized
+        machine image, either as supplied by AWS, or custom-built, but it must
+        have the ECS Agent installed. An example would
+        be "ami-00065bb22bcbffde0", which is an AWS-supplied ECS-Optimized
+        image.
+    instanceType : str
+        The string identifying the instance type for the VM instances which
+        will make up the ECS cluster. An example would be "a1.medium".
+    containerImage : str
+        Required. URI of the container image to use for compute workers. This
+        container must have ecscall installed. It can be the same container as
+        used for the main script, as the entry point is over-written.
+    executionRoleArn : str
+        Required. ARN for an AWS role. This allows ECS to use AWS services on
+        your behalf. A good start is a role including
+        AmazonECSTaskExecutionRolePolicy, which allows access to ECR
+        container registries and CloudWatch logs.
+    taskRoleArn : str
+        Required. ARN for an AWS role. This allows your code to use AWS
+        services. This role should include policies such as AmazonS3FullAccess,
+        covering any AWS services your compute workers will need.
+    subnet : str
+        Required. A subnet ID string associated with the VPC in which
+        workers will run.
+    securityGroups : list of str
+        Required. List of security group IDs associated with the VPC.
+    instanceProfileArn : str
+        The IamInstanceProfile ARN to use for the VM instances. This should
+        include AmazonEC2ContainerServiceforEC2Role policy, which allows the
+        instances to be part of an ECS cluster.
+    memoryReservation : int
+        Optional. Memory (in MiB) reserved for the containers in each
+        compute worker. This should be small enough to fit well inside the
+        memory of the VM on which it is running. Often best to leave this
+        as default until out-of-memory errors occur, then increase.
+    cloudwatchLogGroup : str or None
+        Optional. Name of CloudWatch log group. If not None, each worker
+        sends a log stream of its stdout & stderr to this log group. The
+        group should already exist. If None, no CloudWatch logging is done.
+        Intended for tracking obscure problems, rather than to use permanently.
+    tags: dict or None
+        Optional. If specified this needs to be a dictionary of key/value
+        pairs which will be turned into AWS tags. These will be added to
+        the ECS cluster, task definition and tasks, and the EC2 instances.
+        The keys and values must all be strings. Requires ``ecs:TagResource``
+        permission.
+
+    """
+    jobIDstr = makeJobIDstr(jobName)
+    containerName = 'ECSCALL_{}_container'.format(jobIDstr)
+    taskFamily = "ECSCALL_{}_task".format(jobIDstr)
+    clusterName = "ECSCALL_{}_cluster".format(jobIDstr)
+    aws_tags = None
+    if tags is not None:
+        # covert to AWS format
+        aws_tags = []
+        for key, value in tags.items():
+            obj = {'key': key, 'value': value}
+            aws_tags.append(obj)
+
+    createClusterParams = {"clusterName": clusterName,
+        'tags': [{'key': 'ECSCALL-cluster', 'value': ''}]}
+    if aws_tags is not None:
+        createClusterParams['tags'].extend(aws_tags)
+    userData = '\n'.join([
+        "#!/bin/bash",
+        f"echo ECS_CLUSTER={clusterName} >> /etc/ecs/ecs.config"
+    ])
+
+    # Set up ecscall-specific instance tags.
+    instanceTags = {
+        'ResourceType': 'instance',
+        'Tags': [
+            {'Key': 'ECSCALL-computeworkerinstance', 'Value': ''},
+            {'Key': 'ECSCALL-clustername', 'Value': clusterName}
+        ]
+    }
+    #  If user tags are also given, then add them as well.
+    if tags is not None:
+        for (key, value) in tags.items():
+            obj = {'Key': key, 'Value': value}
+            instanceTags['Tags'].append(obj)
+
+    runInstancesParams = {
+        "ImageId": ami,
+        "InstanceType": instanceType,
+        "MaxCount": numInstances,
+        "MinCount": 1,
+        "SecurityGroupIds": securityGroups,
+        "SubnetId": subnet,
+        "IamInstanceProfile": {"Arn": instanceProfileArn},
+        "UserData": userData,
+        "TagSpecifications": [instanceTags]
+    }
+
+    containerDefs = [{'name': containerName,
+                      'image': containerImage,
+                      'memoryReservation': memoryReservation,
+                      'entryPoint': ['/usr/bin/env', 'ecscall_computeworker']}]
+    if cloudwatchLogGroup is not None:
+        # We are using the default session, so ask it what region
+        session = boto3._get_default_session()
+        regionName = session.region_name
+        # Set up the cloudwatch log configuration
+        containerDefs[0]['logConfiguration'] = {
+            'logDriver': 'awslogs',
+            'options': {
+                'awslogs-group': cloudwatchLogGroup,
+                'awslogs-stream-prefix': f'/ECSCALL_{jobIDstr}',
+                'awslogs-region': regionName
+            }
+        }
+
+    networkConf = {
+        'awsvpcConfiguration': {
+            'assignPublicIp': 'DISABLED',
+            'subnets': [subnet],
+            'securityGroups': securityGroups
+        }
+    }
+
+    taskDefParams = {
+        'family': taskFamily,
+        'networkMode': 'awsvpc',
+        'requiresCompatibilities': ['EC2'],
+        'containerDefinitions': containerDefs
+    }
+    if taskRoleArn is not None:
+        taskDefParams['taskRoleArn'] = taskRoleArn
+    if executionRoleArn is not None:
+        taskDefParams['executionRoleArn'] = executionRoleArn
+    if aws_tags is not None:
+        taskDefParams['tags'] = aws_tags
+
+    runTaskParams = {
+        'launchType': 'EC2',
+        'cluster': clusterName,
+        'networkConfiguration': networkConf,
+        'taskDefinition': 'Dummy, to be over-written within ecscall',
+        'overrides': {'containerOverrides': [{
+            "command": 'Dummy, to be over-written within ecscall',
+            'name': containerName}]}
+    }
+    if aws_tags is not None:
+        runTaskParams['tags'] = aws_tags
+
+    extraParams = {
+        'waitClusterInstanceCountTimeout':
+            ECSComputeWorkerMgr.defaultWaitClusterInstanceCountTimeout,
+        'create_cluster': createClusterParams,
+        'run_instances': runInstancesParams,
+        'register_task_definition': taskDefParams,
+        'run_task': runTaskParams
+    }
+    return extraParams
 
 
 def worker():
@@ -190,7 +515,7 @@ class _EcsClusterMgr:
         # Do not proceed until all workers have started
         self.workerBarrier.wait(timeout=callCfg.barrierTimeout)
 
-    def processReturnVals():
+    def processReturnVals(self):
         """
         Wait for return values to come back from the workers, and assemble
         them into a dictionary
@@ -204,7 +529,7 @@ class _EcsClusterMgr:
         returnValsDict = {}
         numReturnsExpected = len(self.argTupleList)
         queTimeout = self.callCfg.returnTimeout
-        done = False:
+        done = False
         while not done:
             done = (len(returnValsDict) == numReturnsExpected)
             if not done:
@@ -223,8 +548,8 @@ class _EcsClusterMgr:
                     raise EcsCallError(msg)
                 elif timedOut:
                     msg = ("Timeout waiting for function return. Try " +
-                           "increasing returnTimeout (currently {})"
-                    msg = msg.format(queTimeout))
+                           "increasing returnTimeout (currently {})")
+                    msg = msg.format(queTimeout)
                     raise EcsCallError(msg)
 
         return returnValsDict
