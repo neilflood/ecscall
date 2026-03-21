@@ -100,19 +100,6 @@ def callFunc(userFunc, argTupleList, numWorkers, ecsClusterParams,
     return returnValsDict
 
 
-def makeJobIDstr(jobName):
-    """
-    Make a job ID string to use in various generate names. It is unique to
-    this run, and also includes any human-readable information available
-    """
-    hexStr = random.randbytes(4).hex()
-    if jobName is None:
-        jobIDstr = hexStr
-    else:
-        jobIDstr = "{}-{}".format(jobName, hexStr)
-    return jobIDstr
-
-
 def makeEcsClusterParams_Fargate(jobName=None, containerImage=None,
             taskRoleArn=None, executionRoleArn=None,
             subnet=None, securityGroups=None, cpu='0.5 vCPU', memory='1GB',
@@ -430,7 +417,7 @@ def makeEcsClusterParams_PrivateCluster(jobName=None, numInstances=None,
     return extraParams
 
 
-def worker():
+def _worker():
     """
     The function which is called by the worker command line entry point
     """
@@ -483,6 +470,19 @@ def worker():
             argsObj = argsQue.get(block=False)
         except queue.Empty:
             finished = True
+
+
+def _makeJobIDstr(jobName):
+    """
+    Make a job ID string to use in various generate names. It is unique to
+    this run, and also includes any human-readable information available
+    """
+    hexStr = random.randbytes(4).hex()
+    if jobName is None:
+        jobIDstr = hexStr
+    else:
+        jobIDstr = "{}-{}".format(jobName, hexStr)
+    return jobIDstr
 
 
 class EcsCallCfg:
