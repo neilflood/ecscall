@@ -1,6 +1,38 @@
 """
 Simple wrapper for spreading a series of function calls across an AWS ECS cluster
 
+Example usage:
+
+    def myFunc(a, b):
+        "Do some big calculation"
+        val = a + b
+        return val
+
+    import ecscall
+    argTupleList = [
+        (1, 2),
+        (3, 4),
+        (5, 6),
+        (7, 8),
+        (9, 10)
+    ]
+    ecsClusterParams = ecscall.makeEcsClusterParams_Fargate(jobName='MyJob',
+        # .... The rest of the AWS config arguments
+        )
+    numWorkers = 3
+    retDict = ecscall.callFunc(myFunc, argTupleList, numWorkers, ecsClusterParams)
+    for ndx in sorted(retDict.keys()):
+        args = argTupleList[ndx]
+        value = retDict[ndx]
+        print(args, value)
+
+This will run the function myFunc on all the pairs given in argTupleList,
+across 3 workers, and return a dictionary with a key for each index value,
+and the corresponding function return value.
+
+Timeout values can be changed from their defaults using the option callCfg
+argument.
+
 """
 import sys
 import argparse
@@ -16,6 +48,9 @@ import traceback
 
 import boto3
 import cloudpickle
+
+
+__version__ = "0.1.0"
 
 
 def callFunc(userFunc, argTupleList, numWorkers, ecsClusterParams,
@@ -456,6 +491,16 @@ class EcsCallCfg:
     """
     def __init__(self, barrierTimeout=600, waitClusterInstanceCountTimeout=300,
             returnTimeout=300):
+        """
+        Parameters
+        ----------
+          barrierTimeout : int
+            Number of seconds to wait for all workers to start
+          waitClusterInstanceCount : int
+            Number of seconds to wait for expected number of instances
+          returnTimeout : int
+            Number of seconds to wait for a function return to complete
+        """
         self.barrierTimeout = barrierTimeout
         self.waitClusterInstanceCountTimeout = waitClusterInstanceCountTimeout
         self.returnTimeout = returnTimeout
@@ -946,6 +991,14 @@ class WorkerErrorRecord:
     Hold a record of an exception raised in a remote worker.
     """
     def __init__(self, exc, workerID=None):
+        """
+        Parameters
+        ----------
+          exc : Exception
+            The exception which as been raised
+          workerID : int
+            The ID number of the worker
+        """
         self.exc = exc
         self.workerID = workerID
         self.formattedTraceback = traceback.format_exception(exc)
@@ -961,4 +1014,4 @@ class WorkerErrorRecord:
 
 
 class EcsCallError(Exception):
-    pass
+    "Exceptions specific to ecscall"
