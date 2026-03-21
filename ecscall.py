@@ -3,12 +3,13 @@ Simple wrapper for spreading a series of function calls across an AWS ECS cluste
 
 Example usage:
 
+    import ecscall
+
     def myFunc(a, b):
         "Do some big calculation"
         val = a + b
         return val
 
-    import ecscall
     argTupleList = [
         (1, 2),
         (3, 4),
