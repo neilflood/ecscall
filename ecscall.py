@@ -463,7 +463,7 @@ def _worker():
             returnValQue.put((ndx, retVal))
         except Exception as e:
             # Send a printable version of the exception back to main thread
-            workerErr = WorkerErrorRecord(e, cmdargs.workerID)
+            workerErr = _WorkerErrorRecord(e, cmdargs.workerID)
             exceptionQue.put(workerErr)
 
         try:
@@ -986,7 +986,7 @@ class _NetworkDataChannel:
         return s
 
 
-class WorkerErrorRecord:
+class _WorkerErrorRecord:
     """
     Hold a record of an exception raised in a remote worker.
     """
