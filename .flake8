@@ -1,0 +1,6 @@
+[flake8]
+exclude = .git,__pycache__,build,dist
+# Error codes we should ignore
+# E128 continuation line under-indented for visual indent
+# W504 line break after binary operator
+ignore = E128,W504
