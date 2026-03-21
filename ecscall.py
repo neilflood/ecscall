@@ -17,7 +17,8 @@ import boto3
 import cloudpickle
 
 
-def callFunc(userFunc, argTupleList, numWorkers, ecsClusterParams, callCfg=None):
+def callFunc(userFunc, argTupleList, numWorkers, ecsClusterParams,
+        callCfg=None):
     """
     Call the given user function repeatedly, with arguments
     from argTupleList. Workers are running calls concurrently
@@ -385,8 +386,6 @@ def makeEcsClusterParams_PrivateCluster(jobName=None, numInstances=None,
         runTaskParams['tags'] = aws_tags
 
     extraParams = {
-        'waitClusterInstanceCountTimeout':
-            ECSComputeWorkerMgr.defaultWaitClusterInstanceCountTimeout,
         'create_cluster': createClusterParams,
         'run_instances': runInstancesParams,
         'register_task_definition': taskDefParams,
@@ -416,7 +415,8 @@ class _EcsClusterMgr:
     """
     Manage the ECS cluster running workers for callFunc
     """
-    def __init__(self, userFunc, argTupleList, numWorkers, ecsClusterParams, callCfg):
+    def __init__(self, userFunc, argTupleList, numWorkers, ecsClusterParams,
+            callCfg):
         """
         Parameters
         ----------
@@ -448,15 +448,15 @@ class _EcsClusterMgr:
         self.argsQue = queue.Queue()
         self.forceExit = threading.Event()
         self.exceptionQue = queue.Queue()
-        self.workerBarrier = threading.Barrier(numWorkers + 1)
+        self.workerBarrier = threading.Barrier(self.numWorkers + 1)
         self.returnValQue = queue.Queue()
 
         # Put all arg tuples into the argsQue (with their index number)
-        for i in range(len(argTupleList)):
-            self.argsQue.put((i, argTupleList[i]))
+        for i in range(len(self.argTupleList)):
+            self.argsQue.put((i, self.argTupleList[i]))
 
         # Set up the network communication with workers
-        self.dataChan = _NetworkDataChannel(userFunc, self.argsQue,
+        self.dataChan = _NetworkDataChannel(self.userFunc, self.argsQue,
             self.returnValQue, self.forceExit, self.exceptionQue,
             self.workerBarrier)
 
@@ -472,7 +472,7 @@ class _EcsClusterMgr:
         # Create ECS cluster (if requested)
         try:
             self.createCluster()
-            self.runInstances(numWorkers)
+            self.runInstances(self.numWorkers)
         except Exception as e:
             self.shutdownCluster()
             raise e
@@ -481,14 +481,15 @@ class _EcsClusterMgr:
         self.createTaskDef()
 
         # Now create a task for each compute worker
-        runTask_kwArgs = extraParams['run_task']
+        runTask_kwArgs = self.ecsClusterParams['run_task']
         runTask_kwArgs['taskDefinition'] = self.taskDefArn
         containerOverrides = runTask_kwArgs['overrides']['containerOverrides'][0]
         if self.createdCluster:
             runTask_kwArgs['cluster'] = self.clusterName
 
+        channAddr = self.dataChan.addressStr()
         self.taskArnList = []
-        for workerID in range(numWorkers):
+        for workerID in range(self.numWorkers):
             # Construct the command args entry with the current workerID
             workerCmdArgs = ['-i', str(workerID), '--channaddr', channAddr]
             containerOverrides['command'] = workerCmdArgs
@@ -513,7 +514,7 @@ class _EcsClusterMgr:
                 raise EcsCallError(fullMsg)
 
         # Do not proceed until all workers have started
-        self.workerBarrier.wait(timeout=callCfg.barrierTimeout)
+        self.workerBarrier.wait(timeout=self.callCfg.barrierTimeout)
 
     def processReturnVals(self):
         """
@@ -612,8 +613,8 @@ class _EcsClusterMgr:
 
     def getClusterInstanceCount(self, clusterName):
         """
-        Query the given cluster, and return the number of instances it has. If the
-        cluster does not exist, return None.
+        Query the given cluster, and return the number of instances it has.
+        If the cluster does not exist, return None.
         """
         count = None
         response = self.ecsClient.describe_clusters(clusters=[clusterName])
@@ -679,8 +680,6 @@ class _EcsClusterMgr:
                     self.ecsClient.stop_task(cluster=self.clusterName,
                         task=taskArn, reason="Stopped by shutdown")
                 except Exception as e:
-                    # I am unsure if I should just silently ignore any exception
-                    # raised here, but for now I am going to print it to stderr.
                     msg = f"Exception '{e}' raised while stopping ECS task"
                     print(msg, file=sys.stderr)
 
