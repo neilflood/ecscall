@@ -1,5 +1,6 @@
 """
-Simple wrapper for spreading a series of function calls across an AWS ECS cluster
+Simple wrapper for spreading a series of function calls across an
+AWS ECS cluster
 
 Example usage:
 
@@ -21,7 +22,8 @@ Example usage:
         # .... The rest of the AWS config arguments
         )
     numWorkers = 3
-    retDict = ecscall.callFunc(myFunc, argTupleList, numWorkers, ecsClusterParams)
+    retDict = ecscall.callFunc(myFunc, argTupleList, numWorkers,
+        ecsClusterParams)
     for ndx in sorted(retDict.keys()):
         args = argTupleList[ndx]
         value = retDict[ndx]
@@ -162,7 +164,7 @@ def makeEcsClusterParams_Fargate(jobName=None, containerImage=None,
     documentation for further details.
 
     """
-    jobIDstr = makeJobIDstr(jobName)
+    jobIDstr = _makeJobIDstr(jobName)
     containerName = 'ECSCALL_{}_container'.format(jobIDstr)
     taskFamily = "ECSCALL_{}_task".format(jobIDstr)
     clusterName = "ECSCALL_{}_cluster".format(jobIDstr)
@@ -311,7 +313,7 @@ def makeEcsClusterParams_PrivateCluster(jobName=None, numInstances=None,
         permission.
 
     """
-    jobIDstr = makeJobIDstr(jobName)
+    jobIDstr = _makeJobIDstr(jobName)
     containerName = 'ECSCALL_{}_container'.format(jobIDstr)
     taskFamily = "ECSCALL_{}_task".format(jobIDstr)
     clusterName = "ECSCALL_{}_cluster".format(jobIDstr)
@@ -438,7 +440,8 @@ def _worker():
     port = int(port)
     authkey = bytes(authkey, 'utf-8')
 
-    dataChan = _NetworkDataChannel(hostname=host, portnum=port, authkey=authkey)
+    dataChan = _NetworkDataChannel(hostname=host, portnum=port,
+                                   authkey=authkey)
 
     userFunc = dataChan.userFunc
     argsQue = dataChan.argsQue
@@ -655,8 +658,8 @@ class _EcsClusterMgr:
         """
         Shut down the workers
         """
-        # The order in which the various parts are shut down is critical. Please
-        # do not change this unless you are really sure.
+        # The order in which the various parts are shut down is critical.
+        # Please do not change this unless you are really sure.
         # It is also important that all of it happen, so please avoid having
         # any exceptions raised from within this routine.
         self.forceExit.set()
@@ -667,7 +670,8 @@ class _EcsClusterMgr:
             self.dataChan.shutdown()
 
         if self.createdTaskDef:
-            self.ecsClient.deregister_task_definition(taskDefinition=self.taskDefArn)
+            self.ecsClient.deregister_task_definition(
+                taskDefinition=self.taskDefArn)
         # Shut down the ECS cluster, if one was created.
         self.shutdownCluster()
 
