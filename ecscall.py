@@ -106,7 +106,7 @@ def makeEcsClusterParams_Fargate(jobName=None, containerImage=None,
             subnet=None, securityGroups=None, cpu='0.5 vCPU', memory='1GB',
             cpuArchitecture=None, cloudwatchLogGroup=None, tags=None):
     """
-    Helper function to construct a minimal ecsClusterParamsdictionary
+    Helper function to construct a minimal ecsClusterParams dictionary
     suitable for using ECS with Fargate launchType, given just the
     bare essential information.
 
