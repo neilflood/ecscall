@@ -1,0 +1,29 @@
+# The installation requires pip>=23.0. If not, it will fail in rather
+# cryptic ways (depending exactly what options are used).
+#
+
+[build-system]
+requires = ["setuptools>=77.0.3", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ecscall"
+dynamic = ["version"]
+authors = [
+  {name = "Neil Flood"}
+]
+description = "Run multiple function Python function calls across an ECS cluster"
+readme = "README.md"
+license = "MIT"
+
+[project.scripts]
+ecscall_worker = "ecscall:_worker"
+
+[tool.setuptools]
+py-modules = ["ecscall"]
+
+[tool.setuptools.dynamic]
+version = {attr = "ecscall.__version__"}
+
+[project.urls]
+Repository = "https://github.com/ubarsc/ecscall.git"
