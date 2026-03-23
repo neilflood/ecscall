@@ -33,7 +33,7 @@ This will run the function myFunc on all the pairs given in argTupleList,
 across 3 workers, and return a dictionary with a key for each index value,
 and the corresponding function return value.
 
-Timeout values can be changed from their defaults using the option callCfg
+Timeout values can be changed from their defaults using the optional callCfg
 argument.
 
 """
