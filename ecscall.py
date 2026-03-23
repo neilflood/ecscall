@@ -235,12 +235,12 @@ def makeEcsClusterParams_Fargate(jobName=None, containerImage=None,
     if aws_tags is not None:
         runTaskParams['tags'] = aws_tags
 
-    extraParams = {
+    ecsClusterParams = {
         'register_task_definition': taskDefParams,
         'create_cluster': createClusterParams,
         'run_task': runTaskParams
     }
-    return extraParams
+    return ecsClusterParams
 
 
 def makeEcsClusterParams_PrivateCluster(jobName=None, numInstances=None,
@@ -411,13 +411,13 @@ def makeEcsClusterParams_PrivateCluster(jobName=None, numInstances=None,
     if aws_tags is not None:
         runTaskParams['tags'] = aws_tags
 
-    extraParams = {
+    ecsClusterParams = {
         'create_cluster': createClusterParams,
         'run_instances': runInstancesParams,
         'register_task_definition': taskDefParams,
         'run_task': runTaskParams
     }
-    return extraParams
+    return ecsClusterParams
 
 
 def _worker():
@@ -686,7 +686,7 @@ class _EcsClusterMgr:
         """
         If requested to do so, create an ECS cluster to run on.
         """
-        createCluster_kwArgs = self.extraParams.get('create_cluster')
+        createCluster_kwArgs = self.ecsClusterParams.get('create_cluster')
         if createCluster_kwArgs is not None:
             self.clusterName = createCluster_kwArgs.get('clusterName')
             self.ecsClient.create_cluster(**createCluster_kwArgs)
@@ -697,7 +697,7 @@ class _EcsClusterMgr:
         If requested to do so, run the instances required to populate
         the cluster
         """
-        runInstances_kwArgs = self.extraParams.get('run_instances')
+        runInstances_kwArgs = self.ecsClusterParams.get('run_instances')
         if runInstances_kwArgs is not None:
             self.ec2client = boto3.client('ec2')
 
@@ -783,7 +783,7 @@ class _EcsClusterMgr:
         """
         If requested to do so, create a task definition for the worker tasks
         """
-        taskDef_kwArgs = self.extraParams.get('register_task_definition')
+        taskDef_kwArgs = self.ecsClusterParams.get('register_task_definition')
         if taskDef_kwArgs is not None:
             taskDefResponse = self.ecsClient.register_task_definition(**taskDef_kwArgs)
             self.taskDefArn = taskDefResponse['taskDefinition']['taskDefinitionArn']
