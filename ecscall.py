@@ -93,8 +93,9 @@ def callFunc(userFunc, argTupleList, numWorkers, ecsClusterParams,
         callCfg = EcsCallCfg()
 
     try:
-        clusterMgr = _EcsClusterMgr(userFunc, argTupleList, numWorkers,
-            ecsClusterParams, callCfg)
+        clusterMgr = _EcsClusterMgr(userFunc=userFunc, argTupleList=argTupleList,
+            numWorkers=numWorkers, ecsClusterParams=ecsClusterParams,
+            callCfg=callCfg)
         clusterMgr.startWorkers()
         returnValsDict = clusterMgr.processReturnVals()
     finally:
