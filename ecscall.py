@@ -250,8 +250,8 @@ def makeEcsClusterParams_PrivateCluster(jobName=None, numInstances=None,
             memoryReservation=1024, cloudwatchLogGroup=None, tags=None):
     """
     Helper function to construct a basic ecsClusterParams dictionary
-    suitable for using ECS with a private per-job cluster, given just the
-    bare essential information.
+    suitable for using ECS with a private per-job cluster of EC2 instances,
+    given just the bare essential information.
 
     Returns a Python dictionary.
 
