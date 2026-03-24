@@ -457,6 +457,7 @@ def _worker():
     except queue.Empty:
         finished = True
     while not finished and not forceExit.is_set():
+        print('starting worker loop')
         try:
             (ndx, args) = argsObj
             retVal = userFunc(*args)
@@ -464,6 +465,7 @@ def _worker():
             returnValQue.put((ndx, retVal))
         except Exception as e:
             # Send a printable version of the exception back to main thread
+            print('sending an exception', e)
             workerErr = _WorkerErrorRecord(e, cmdargs.workerID)
             exceptionQue.put(workerErr)
 
@@ -633,7 +635,7 @@ class _EcsClusterMgr:
             if not done:
                 timedOut = False
                 try:
-                    retObj = self.argsQue.get(timeout=queTimeout)
+                    retObj = self.returnValQue.get(timeout=queTimeout)
                     (ndx, retVal) = retObj
                     returnValsDict[ndx] = retVal
                 except queue.Empty:
