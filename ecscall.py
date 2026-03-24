@@ -460,6 +460,7 @@ def _worker():
         try:
             (ndx, args) = argsObj
             retVal = userFunc(*args)
+            print('ndx, args, retVal', ndx, args, retVal)
             returnValQue.put((ndx, retVal))
         except Exception as e:
             # Send a printable version of the exception back to main thread
@@ -899,7 +900,6 @@ class _NetworkDataChannel:
             self.forceExit = forceExit
             self.exceptionQue = exceptionQue
             self.workerBarrier = workerBarrier
-            print('in server, callCfg', callCfg)
             self.callCfg = cloudpickle.dumps(callCfg)
 
             DataChannelMgr.register("get_userfunc",
@@ -949,7 +949,6 @@ class _NetworkDataChannel:
             self.forceExit = self.mgr.get_forceexit()
             self.exceptionQue = self.mgr.get_exceptionque()
             self.workerBarrier = self.mgr.get_workerbarrier()
-            print('in client, get_callcfg', self.mgr.get_callcfg())
             self.callCfg = cloudpickle.loads(
                 eval(str(self.mgr.get_callcfg())))
         else:
