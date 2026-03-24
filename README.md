@@ -1,6 +1,7 @@
 # ecscall
 Simple wrapper for spreading a series of calls to a Python function across an
-AWS ECS cluster
+AWS ECS cluster. The cluster can use either Fargate (the simplest) or
+user-configured EC2 instances to run the worker processes.
 
 Example usage:
 
