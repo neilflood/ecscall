@@ -78,7 +78,7 @@ def callFunc(userFunc, argTupleList, numWorkers, ecsClusterParams,
         the ECS cluster.
       callCfg : EcsCallCfg or None
         If given, this allows over-ride of default behaviour of ecscall.
-        Mostly timeouts.
+        Currently this consists of various timeout values.
 
     Returns
     -------
