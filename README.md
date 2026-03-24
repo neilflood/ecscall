@@ -35,7 +35,7 @@ This will run the function myFunc on all the pairs given in argTupleList,
 across 3 workers, and return a dictionary with a key for each index value,
 and the corresponding function return value.
 
-Full human-readable module documentation is in ecscall.md. The docstrings
+Full human-readable module documentation is in `ecscall.md`. The docstrings
 for the helper functions `makeEcsClusterParams_Fargate` and 
 `makeEcsClusterParams_PrivateCluster` describe in detail the AWS configuration
 information required.
