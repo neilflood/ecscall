@@ -183,7 +183,7 @@ def makeEcsClusterParams_Fargate(jobName=None, containerImage=None,
 
     containerDefs = [{'name': containerName,
                       'image': containerImage,
-                      'entryPoint': ['/usr/bin/env', 'ecscall_computeworker']}]
+                      'entryPoint': ['/usr/bin/env', 'ecscall_worker']}]
     if cloudwatchLogGroup is not None:
         # We are using the default session, so ask it what region
         session = boto3._get_default_session()
@@ -363,7 +363,7 @@ def makeEcsClusterParams_PrivateCluster(jobName=None, numInstances=None,
     containerDefs = [{'name': containerName,
                       'image': containerImage,
                       'memoryReservation': memoryReservation,
-                      'entryPoint': ['/usr/bin/env', 'ecscall_computeworker']}]
+                      'entryPoint': ['/usr/bin/env', 'ecscall_worker']}]
     if cloudwatchLogGroup is not None:
         # We are using the default session, so ask it what region
         session = boto3._get_default_session()
@@ -659,7 +659,6 @@ class _EcsClusterMgr:
         # It is also important that all of it happen, so please avoid having
         # any exceptions raised from within this routine.
         self.forceExit.set()
-        self.makeOutObjList()
         self.waitClusterTasksFinished()
         self.checkTaskErrors()
         if hasattr(self, 'dataChan'):
