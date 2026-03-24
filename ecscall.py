@@ -463,7 +463,7 @@ def _worker():
             returnValQue.put((ndx, retVal))
         except Exception as e:
             # Send a printable version of the exception back to main thread
-            workerErr = _WorkerErrorRecord(e, cmdargs.workerID)
+            workerErr = _WorkerErrorRecord(e, cmdargs.idnum)
             exceptionQue.put(workerErr)
 
         try:
