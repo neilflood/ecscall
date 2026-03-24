@@ -457,15 +457,12 @@ def _worker():
     except queue.Empty:
         finished = True
     while not finished and not forceExit.is_set():
-        print('starting worker loop')
         try:
             (ndx, args) = argsObj
             retVal = userFunc(*args)
-            print('ndx, args, retVal', ndx, args, retVal)
             returnValQue.put((ndx, retVal))
         except Exception as e:
             # Send a printable version of the exception back to main thread
-            print('sending an exception', e)
             workerErr = _WorkerErrorRecord(e, cmdargs.workerID)
             exceptionQue.put(workerErr)
 
