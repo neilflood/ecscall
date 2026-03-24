@@ -93,6 +93,7 @@ def callFunc(userFunc, argTupleList, numWorkers, ecsClusterParams,
         callCfg = EcsCallCfg()
 
     try:
+        print('callCfg', callCfg)
         clusterMgr = _EcsClusterMgr(userFunc, argTupleList, numWorkers,
             ecsClusterParams, callCfg)
         clusterMgr.startWorkers()
@@ -446,6 +447,7 @@ def _worker():
     forceExit = dataChan.forceExit
     workerBarrier = dataChan.workerBarrier
     callCfg = dataChan.callCfg
+    print('callCfg in worker', callCfg)
 
     # Wait at the barrier, so nothing proceeds until all workers have had
     # a chance to start
