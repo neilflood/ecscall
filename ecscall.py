@@ -940,7 +940,8 @@ class _NetworkDataChannel:
             self.mgr.connect()
 
             # Get the proxy objects.
-            self.userFunc = cloudpickle.loads(self.mgr.get_userfunc())
+            self.userFunc = cloudpickle.loads(
+                eval(str(self.mgr.get_userfunc())))
             self.argsQue = self.mgr.get_argsque()
             self.returnValQue = self.mgr.get_returnvalque()
             self.forceExit = self.mgr.get_forceexit()
