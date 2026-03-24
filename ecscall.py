@@ -898,7 +898,7 @@ class _NetworkDataChannel:
             self.forceExit = forceExit
             self.exceptionQue = exceptionQue
             self.workerBarrier = workerBarrier
-            self.callCfg = callCfg
+            self.callCfg = cloudpickle.dumps(callCfg)
 
             DataChannelMgr.register("get_userfunc",
                 callable=lambda: self.userFunc)
@@ -947,7 +947,8 @@ class _NetworkDataChannel:
             self.forceExit = self.mgr.get_forceexit()
             self.exceptionQue = self.mgr.get_exceptionque()
             self.workerBarrier = self.mgr.get_workerbarrier()
-            self.callCfg = self.mgr.get_callcfg()
+            self.callCfg = cloudpickle.loads(
+                eval(str(self.mgr.get_callcfg())))
         else:
             msg = ("Must supply either (userFunc, argsQue, etc.)" +
                    " or ALL of (hostname, portnum and authkey)")
