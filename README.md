@@ -41,7 +41,7 @@ for the helper functions `makeEcsClusterParams_Fargate` and
 information required.
 
 ## Requirements
-Requires boto3 and cloudpickle.
+Requires `boto3` and `cloudpickle`.
 
-The container being used to run the workers must have cloudpickle installed,
+The container being used to run the workers must have `cloudpickle` installed,
 and also any other packages which the user function requires.
