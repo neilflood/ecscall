@@ -93,9 +93,8 @@ def callFunc(userFunc, argTupleList, numWorkers, ecsClusterParams,
         callCfg = EcsCallCfg()
 
     try:
-        clusterMgr = _EcsClusterMgr(userFunc=userFunc, argTupleList=argTupleList,
-            numWorkers=numWorkers, ecsClusterParams=ecsClusterParams,
-            callCfg=callCfg)
+        clusterMgr = _EcsClusterMgr(userFunc, argTupleList, numWorkers,
+            ecsClusterParams, callCfg)
         clusterMgr.startWorkers()
         returnValsDict = clusterMgr.processReturnVals()
     finally:
@@ -552,9 +551,10 @@ class _EcsClusterMgr:
             self.argsQue.put((i, self.argTupleList[i]))
 
         # Set up the network communication with workers
-        self.dataChan = _NetworkDataChannel(self.userFunc, self.argsQue,
-            self.returnValQue, self.forceExit, self.exceptionQue,
-            self.workerBarrier)
+        self.dataChan = _NetworkDataChannel(userFunc=self.userFunc,
+            argsQue=self.argsQue, returnValQue=self.returnValQue,
+            forceExit=self.forceExit, exceptionQue=self.exceptionQue,
+            workerBarrier=self.workerBarrier, callCfg=self.callCfg)
 
         self.createdTaskDef = False
         self.createdCluster = False
